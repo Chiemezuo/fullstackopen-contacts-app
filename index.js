@@ -1,6 +1,8 @@
+require('dotenv').config()
 const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
+const Contact = require('./models/contact')
 let contacts = require('./db.json')
 
 const app = express()
@@ -8,10 +10,6 @@ const port = process.env.PORT || 3001
 
 app.use(cors())
 app.use(express.static('build'))
-
-const generateId = () => {
-  return Math.floor(Math.random() * 100001);
-}
 
 morgan.token('body', function (req, res) {
   return JSON.stringify(req.body)
@@ -21,35 +19,49 @@ app.use(express.json())
 app.use(morgan(`:method :url :status :res[content-length] - :response-time ms :body`))
 
 app.get('/api/persons', (req, res) => {
-  res.json(contacts)
+  Contact.find({}).then(
+    contact => {
+      console.log('getting contact...')
+      res.json(contact)
+    }
+  )
 })
 
 app.get('/api/persons/:id', (req, res) => {
-  const id = Number(req.params.id)
-  const contact = contacts.find(person => person.id === id)
+  Contact.findById(req.params.id).then(contact => {
+    if (contact) {
+      res.json(contact)
+    } else {
+      res.status(404).json({
+        error: 'id not found'
+      })
+    }
+  })
+})
 
-  if (contact) {
-    res.json(contact)
-  } else {
-    res.status(404).json({
-      error: 'id not found'
+app.put('/api/persons/:id', (req, res) => {
+  Contact.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
+    .then(updatedContact => {
+      res.json(updatedContact)
+      return updatedContact
     })
-  }
-
+    .catch(error => next(error))
 })
 
 app.get('/info', (req, res) => {
-  const contactsCount = contacts.length
-  const date = new Date()
+  Contact.find({}).estimatedDocumentCount().then(num => {
+    const contactsCount = num
+    const date = new Date()
 
-  const str = `Phonebook has info for ${contactsCount}`
+    const str = `Phonebook has info for ${contactsCount}`
 
-  res.send(`
+    res.send(`
     <div>
       <p>${str}</p>
       <p>${date}</p>
     </div>`
-  )
+    )
+  })
 })
 
 app.post('/api/persons', (req, res) => {
@@ -61,29 +73,21 @@ app.post('/api/persons', (req, res) => {
     })
   }
 
-  const foundSameName = contacts.find(contact => contact.name.toLowerCase() === payload.name.toLowerCase())
-
-  if (foundSameName) {
-    return res.status(400).json({
-      error: "name must be unique"
-    })
-  }
-
-  const contact = {
-    ...payload,
-    id: generateId()
-  }
-
-  contacts = contacts.concat(contact)
-
-  res.json(contact)
+  const contact = new Contact({ ...payload })
+  contact.save().then(response => {
+    console.log('new contact saved', response)
+    res.json(contact)
+  })
 })
 
 app.delete('/api/persons/:id', (req, res) => {
-  const id = Number(req.params.id)
-  contacts = contacts.filter(contact => contact.id !== id)
-
-  res.status(204).send()
+  const id = req.params.id
+  Contact.findByIdAndRemove(id)
+    .then(deleted => {
+      res.status(204).send()
+      console.log(deleted)
+    })
+    .catch(error => next(error))
 })
 
 const unknownEndpoint = (req, res, next) => {
@@ -93,5 +97,13 @@ const unknownEndpoint = (req, res, next) => {
 }
 
 app.use(unknownEndpoint)
+
+const errorHandler = (error, req, res, next) => {
+  console.log(error.message)
+
+  next(error)
+}
+
+app.use(errorHandler)
 
 app.listen(port, () => console.log('app is running on port', port))
