@@ -3,14 +3,15 @@ const express = require('express')
 const morgan = require('morgan')
 const cors = require('cors')
 const Contact = require('./models/contact')
-let contacts = require('./db.json')
 
 const app = express()
+// eslint-disable-next-line no-undef
 const port = process.env.PORT || 3001
 
 app.use(cors())
 app.use(express.static('build'))
 
+// eslint-disable-next-line no-unused-vars
 morgan.token('body', function (req, res) {
   return JSON.stringify(req.body)
 })
@@ -69,7 +70,7 @@ app.post('/api/persons', (req, res) => {
 
   const contact = new Contact({ ...payload })
   contact.save()
-    .then(response => {
+    .then(() => {
       res.json(contact)
     })
     .catch(error => {
@@ -83,7 +84,7 @@ app.post('/api/persons', (req, res) => {
     })
 })
 
-app.delete('/api/persons/:id', (req, res) => {
+app.delete('/api/persons/:id', (req, res, next) => {
   const id = req.params.id
   Contact.findByIdAndRemove(id)
     .then(deleted => {
@@ -93,7 +94,7 @@ app.delete('/api/persons/:id', (req, res) => {
     .catch(error => next(error))
 })
 
-const unknownEndpoint = (req, res, next) => {
+const unknownEndpoint = (req, res) => {
   res.status(404).send({
     error: "unknown endpoint"
   })
