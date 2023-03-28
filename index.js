@@ -39,8 +39,8 @@ app.get('/api/persons/:id', (req, res) => {
   })
 })
 
-app.put('/api/persons/:id', (req, res) => {
-  Contact.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
+app.put('/api/persons/:id', (req, res, next) => {
+  Contact.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true })
     .then(updatedContact => {
       res.json(updatedContact)
       return updatedContact
@@ -67,17 +67,20 @@ app.get('/info', (req, res) => {
 app.post('/api/persons', (req, res) => {
   const payload = req.body
 
-  if (!payload.name || !payload.number) {
-    return res.status(400).json({
-      error: "Name or number missing"
-    })
-  }
-
   const contact = new Contact({ ...payload })
-  contact.save().then(response => {
-    console.log('new contact saved', response)
-    res.json(contact)
-  })
+  contact.save()
+    .then(response => {
+      res.json(contact)
+    })
+    .catch(error => {
+      if (error.code === 11000) {
+        res.status(400).json({ error: "User already exists" })
+      } else if (error.errors.name) {
+        res.status(400).json({ error: error.errors.name.message })
+      } else if (error.errors.number) {
+        res.status(400).json({ error: error.errors.number.message })
+      }
+    })
 })
 
 app.delete('/api/persons/:id', (req, res) => {
